@@ -36,15 +36,6 @@ connect-src 'none' blocks every network request this page could ever make.
 
 Double-click index.html. It opens in your default browser and works immediately.
 
-### Option 2 — host it for free on GitHub Pages
-
-1. Create a free account at [github.com](https://github.com)
-2. Create a new repository (click the **+** button → New repository)
-3. Upload all four files: index.html, styles.css, avicon.svg and the js/ folder
-4. Go to **Settings → Pages** and set the source to the main branch
-5. GitHub gives you a public URL such as https://yourusername.github.io/phishing-analyser/
-
-That URL is free, always-on, and requires no maintenance.
 
 ---
 
