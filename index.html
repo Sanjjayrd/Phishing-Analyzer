@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<title>Phishing Email Analyser - check an email for phishing warning signs</title>
+<meta name="description" content="Paste a suspicious email and get an explainable phishing risk score. Educational triage tool that runs entirely in your browser - nothing is uploaded anywhere.">
+<meta name="color-scheme" content="dark light">
+
+<!-- ==========================================================================
+     Content Security Policy
+     --------------------------------------------------------------------------
+     A security instruction to the browser. It blocks this page from making
+     outbound network connections of any kind, which is how the privacy promise
+     is enforced rather than merely stated:
+        connect-src 'none' - no fetch/XHR/WebSocket/beacon can ever succeed
+        form-action 'none' - no form on this page can submit anywhere
+        object-src 'none'  - no plugins, no embedded objects
+        base-uri 'none'    - stops an injected <base> tag redirecting links
+     It deliberately does not restrict script-src, so the page still works if
+     you simply double-click index.html. When you host this on a real web
+     server you can (and should) tighten it further - see README.md.
+     ========================================================================== -->
+<meta http-equiv="Content-Security-Policy" content="connect-src 'none'; form-action 'none'; object-src 'none'; base-uri 'none'; frame-src 'none'; media-src 'none'">
+
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<a class="skip-link" href="#email-input">Skip to the email text box</a>
+
+<header class="site-header">
+  <div class="wrap header-inner">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 2.5 4.5 6v6c0 4.6 3.1 8.3 7.5 9.5 4.4-1.2 7.5-4.9 7.5-9.5V6z"></path>
+          <path d="M9 12.2l2.1 2.1L15.2 10"></path>
+        </svg>
+      </span>
+      <div class="brand-text">
+        <h1>Phishing Email Analyser</h1>
+        <p class="tagline">Paste a suspicious email. See every warning sign, the points it earned, and what to do next.</p>
+      </div>
+    </div>
+    <ul class="header-badges">
+      <li class="badge badge-good"><span aria-hidden="true">&#9679;</span> Runs 100% in your browser</li>
+      <li class="badge">Nothing is uploaded</li>
+      <li class="badge">No tracking, no cookies</li>
+    </ul>
+  </div>
+</header>
+
+<main class="wrap" id="main">
+  <!-- ============================ INPUT ============================ -->
+  <section class="card" id="input-card" aria-labelledby="input-heading">
+    <div class="card-head">
+      <h2 id="input-heading"><span class="step">1</span> Paste the email</h2>
+      <p>Copy the message from your mail program - and if you can, include the full headers
+         (in most mail programs: <em>Show original</em>, <em>View source</em> or
+         <em>Show message headers</em>). Headers let the analyser check SPF, DKIM, DMARC and
+         the Reply-To address.</p>
+    </div>
+
+    <div class="demo-row">
+      <label for="demo-select">Not sure what to paste? Load a fictional demo email</label>
+      <div class="demo-controls">
+        <select id="demo-select">
+          <option value="">Choose a demo...</option>
+        </select>
+        <button type="button" class="btn btn-ghost" id="reset-demos-btn" hidden>Reset progress</button>
+      </div>
+      <p class="demo-note" id="demo-note" hidden></p>
+    </div>
+
+    <label class="sr-only" for="email-input">The email text to analyse</label>
+    <textarea id="email-input" rows="14" spellcheck="false" autocomplete="off"
+      placeholder="Paste the full email here, including any email headers..."></textarea>
+
+    <div class="input-meta">
+      <span id="char-count">0 characters</span>
+      <span class="input-meta-note">Analysis happens on your own device. Nothing is sent anywhere.</span>
+    </div>
+
+    <div class="actions">
+      <button type="button" class="btn btn-primary" id="analyse-btn">Analyse Email</button>
+      <button type="button" class="btn btn-ghost" id="clear-btn">Clear</button>
+      <button type="button" class="btn btn-ghost" id="copy-btn" hidden>Copy report</button>
+    </div>
+    <p class="hint">Tip: press <kbd>Ctrl</kbd> + <kbd>Enter</kbd> (<kbd>Cmd</kbd> + <kbd>Enter</kbd> on a Mac) to analyse.</p>
+  </section>
+
+  <!-- ============================ RESULTS ============================ -->
+  <section class="results" id="results" hidden aria-live="polite">
+
+    <div class="card verdict-card" id="verdict-card">
+      <div class="verdict-grid">
+        <div class="gauge-wrap">
+          <svg class="gauge" viewBox="0 0 140 140" role="img" aria-labelledby="gauge-title">
+            <title id="gauge-title">Phishing risk score</title>
+            <circle class="gauge-track" cx="70" cy="70" r="58"></circle>
+            <circle class="gauge-fill" cx="70" cy="70" r="58" id="gauge-fill"></circle>
+          </svg>
+          <div class="gauge-center">
+            <span class="gauge-score" id="gauge-score">0</span>
+            <span class="gauge-outof">out of 100</span>
+          </div>
+        </div>
+
+        <div class="verdict-text">
+          <p class="verdict-eyebrow">Analyser result</p>
+          <h2 class="verdict-title" id="verdict-title">-</h2>
+          <p class="verdict-summary" id="verdict-summary"></p>
+          <ul class="verdict-facts" id="verdict-facts"></ul>
+          <p class="disclaimer" id="disclaimer"></p>
+        </div>
+      </div>
+
+      <div class="band-bar" aria-hidden="true">
+        <div class="band-bar-zone zone-low"><span>0-24 Low</span></div>
+        <div class="band-bar-zone zone-mid"><span>25-54 Suspicious</span></div>
+        <div class="band-bar-zone zone-high"><span>55-100 High</span></div>
+        <div class="band-bar-marker" id="band-marker"></div>
+      </div>
+    </div>
+
+    <div class="tabs" role="tablist" aria-label="Result sections">
+      <button class="tab" role="tab" id="tab-findings" aria-controls="panel-findings" aria-selected="true">Warning signs</button>
+      <button class="tab" role="tab" id="tab-next" aria-controls="panel-next" aria-selected="false" tabindex="-1">What to do</button>
+      <button class="tab" role="tab" id="tab-headers" aria-controls="panel-headers" aria-selected="false" tabindex="-1">Headers</button>
+      <button class="tab" role="tab" id="tab-scoring" aria-controls="panel-scoring" aria-selected="false" tabindex="-1">How scoring works</button>
+      <button class="tab" role="tab" id="tab-privacy" aria-controls="panel-privacy" aria-selected="false" tabindex="-1">Privacy</button>
+    </div>
+
+    <div class="card panel" id="panel-findings" role="tabpanel" aria-labelledby="tab-findings"></div>
+    <div class="card panel" id="panel-next" role="tabpanel" aria-labelledby="tab-next" hidden></div>
+    <div class="card panel" id="panel-headers" role="tabpanel" aria-labelledby="tab-headers" hidden></div>
+    <div class="card panel" id="panel-scoring" role="tabpanel" aria-labelledby="tab-scoring" hidden></div>
+    <div class="card panel" id="panel-privacy" role="tabpanel" aria-labelledby="tab-privacy" hidden></div>
+  </section>
+
+  <!-- ============================ SAFETY ============================ -->
+  <section class="card safety-card" aria-labelledby="safety-heading">
+    <h2 id="safety-heading">What this tool can and cannot do</h2>
+    <div class="safety-grid">
+      <div class="safety-col safety-cannot">
+        <h3>It cannot</h3>
+        <ul>
+          <li><strong>Prove that an email is malicious.</strong> It matches the text against known
+              patterns. A suspicious-looking message may be genuine, and a carefully crafted attack
+              may show very few signs.</li>
+          <li><strong>Prove that an email is safe.</strong> A low score only means that nothing on
+              the checklist matched. It is not a clean bill of health.</li>
+          <li><strong>Detect everything.</strong> It cannot see images, QR codes, real attachment
+              contents, or anything hidden behind a link.</li>
+        </ul>
+      </div>
+      <div class="safety-col safety-do">
+        <h3>Please always</h3>
+        <ul>
+          <li><strong>Never click a link or open an attachment to see what happens.</strong>
+              Testing a suspected phishing email is exactly what the attacker wants.</li>
+          <li><strong>Verify important messages independently</strong> - use the organisation's
+              official website or app, or a phone number you already have. Never a contact detail
+              taken from the email itself.</li>
+          <li><strong>Report it</strong> to your IT or security team, or to a national
+              anti-phishing service, then delete it.</li>
+        </ul>
+      </div>
+    </div>
+    <p class="safety-footnote">This is an educational triage tool for building your own judgement -
+      not a malware scanner, an email gateway, or a substitute for professional security advice.</p>
+  </section>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <p><strong>Phishing Email Analyser</strong> - a static, dependency-free learning tool.
+      Your email never leaves your device.</p>
+    <p class="footer-small">Built with plain HTML, CSS and JavaScript. No backend, no database,
+      no accounts, no analytics, no external requests.</p>
+  </div>
+</footer>
+
+<!-- Plain scripts, loaded in order. No build step, no bundler, no modules:
+     this is what lets you open this file directly from your own computer. -->
+<script src="js/rules.js"></script>
+<script src="js/analyzer.js"></script>
+<script src="js/demos.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
